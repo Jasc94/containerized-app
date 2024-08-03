@@ -1,0 +1,15 @@
+version: '3'
+
+services:
+  api:
+    build: .
+    ports:
+      - 5000:5000
+    volumes:
+      - ./app:/app
+    networks:
+      - my-network
+
+networks:
+  my-network:
+    driver: bridge
