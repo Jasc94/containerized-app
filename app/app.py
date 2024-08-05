@@ -18,64 +18,170 @@ select
 	t.task_id
 	, t.task
 	, t.status
-	, t.due_date
+	, to_char(t.due_date, 'yyyy-mm-dd') due_date
 	, array_agg(t2.tag) as tags
 from tasks t
 left join task_tag tt on t.task_id = tt.task_id
 left join tags t2 on tt.tag_id = t2.tag_id
 group by t.task_id, t.task, t.status, t.due_date
+order by t.status asc
+;
+"""
+
+READ_TASKS_STATUS = """
+select distinct status
+from tasks
+order by status asc
 ;
 """
 
 ADD_TASK_TASKS = """
-INSERT INTO tasks (task) values (%s);
+INSERT INTO tasks (task, due_date) values (%s, %s) RETURNING task_id;
 """
 
-ADD_TASK_TAG = """
-INSERT INTO tags (tag) values(%s);
+ADD_TASK_TAGS = """
+INSERT INTO tags(tag)
+SELECT %s
+WHERE
+NOT EXISTS (
+SELECT tag FROM tags WHERE tag = %s
+)
+RETURNING tag_id;
 """
 
-ADD_TASK_TASK_TAG = """
-INSERT INTO task_tak (task_id, tag_id) values (%s, %s);
+ADD_TASK_TASK_TAG_1 = """
+INSERT INTO task_tag (task_id, tag_id) values (%s, %s);
+"""
+
+ADD_TASK_TASK_TAG_2 = """
+INSERT INTO task_tag (task_id, tag_id) values (%s, (select tag_id from tags where tag=%s));
+"""
+
+DELETE_TASK_FROM_TASKS = """
+delete
+from tasks
+where task_id = %s
+"""
+
+DELETE_TASK_FROM_TASK_TAG = """
+delete
+from task_tag
+where task_id = %s
+"""
+
+READ_TASK = """
+select
+	t.task_id
+	, t.task
+	, t.status
+	, to_char(t.due_date, 'yyyy-mm-dd') due_date
+	, array_agg(t2.tag) as tags
+from tasks t
+left join task_tag tt on t.task_id = tt.task_id
+left join tags t2 on tt.tag_id = t2.tag_id
+where t.task_id = %s
+group by t.task_id, t.task, t.status, t.due_date
+;
+"""
+
+UPDATE_TASK = """
+update tasks
+set task = %s, 
+    status = %s,
+    due_date = %s
+where task_id = %s
+;
 """
 
 
 @app.route('/')
 def index():
     with db_connection.cursor() as cursor:
+        # Tasks
         cursor.execute(READ_TASKS)
         rows = cursor.fetchall()
         column_names = [metadata[0] for metadata in cursor.description]
         tasks = [dict(zip(column_names, row)) for row in rows]
-    return render_template('index.html', tasks=tasks)
+        # Status
+        cursor.execute(READ_TASKS_STATUS)
+        rows = cursor.fetchall()
+        status = [_[0] for _ in rows]
+
+        tasks_grouped_by_status = {
+            status_i: [task for task in tasks if task['status']==status_i] for status_i in status
+        }
+
+    return render_template('index.html', tasks=tasks, tasks_grouped=tasks_grouped_by_status)
 
 @app.route('/add', methods=['POST'])
 def add():
+    # Task attributes
     task = request.form['task']
+    tag = request.form['tag'] if len(request.form['tag']) > 0 else None
+    due_date = request.form['due_date'] if len(request.form['due_date']) > 0 else None
+    # Create in database
     with db_connection.cursor() as cursor:
-        cursor.execute(ADD_TASK_TASKS, (task,))
+        # Add task to tasks table
+        cursor.execute(ADD_TASK_TASKS, (task, due_date))
+        task_id = cursor.fetchall()
+        # Add tag to tags table
+        tag_id = cursor.execute(ADD_TASK_TAGS, (tag, tag))
+        tag_id = cursor.fetchall()
+        # Add task tag relation
+        # If it is a new tag
+        if len(tag_id) > 0:
+            cursor.execute(ADD_TASK_TASK_TAG_1, (task_id[0][0], tag_id[0][0]))
+        # If the tag already existed
+        else:
+            cursor.execute(ADD_TASK_TASK_TAG_2, (task_id[0][0], tag))
+
     db_connection.commit()
     return redirect(url_for('index'))
 
+@app.route('/delete/<int:task_id>')
+def delete(task_id):
+    with db_connection.cursor() as cursor:
+        cursor.execute(DELETE_TASK_FROM_TASKS, (task_id, ))
+        cursor.execute(DELETE_TASK_FROM_TASK_TAG, (task_id, ))
+    db_connection.commit()
+    return redirect(url_for('index'))
 
-@app.route('/edit/<int:index>', methods=['GET', 'POST'])
-def edit(index):
-    todo = todos[index]
-    if request.method == 'POST':
-        todo['task'] = request.form['todo']
-        return redirect(url_for('index'))
+@app.route('/modify/<int:task_id>', methods=['GET', 'POST'])
+def modify(task_id):
+    with db_connection.cursor() as cursor:
+        cursor.execute(READ_TASK, (task_id, ))
+        task = cursor.fetchall()[0]
+        column_names = [metadata[0] for metadata in cursor.description]
+        task = dict(zip(column_names, task))
+
+    return render_template('modify.html', task=task)
+
+@app.route('/update/<int:task_id>', methods=['POST'])
+def update(task_id):
+    # To modify tasks table fields
+    task = request.form['task']
+    status = request.form['status']
+    if request.form['due_date'] != 'None' and len(request.form['due_date']) > 0:
+        due_date = request.form['due_date']
     else:
-        return render_template('edit.html', todo=todo, index=index)
+        due_date = None
 
-@app.route('/check/<int:index>')
-def check(index):
-    todos[index]['done'] = not todos[index]['done']
+    # To modify tags
+    tags = request.form(['tags'])
+    
+
+    with db_connection.cursor() as cursor:
+        cursor.execute(UPDATE_TASK, (task, status, due_date, task_id))
+    db_connection.commit()
+
     return redirect(url_for('index'))
 
-@app.route('/delete/<int:index>')
-def delete(index):
-    del todos[index]
+@app.route('/cancel')
+def cancel():
     return redirect(url_for('index'))
+
+
+
 
 
 if __name__ == '__main__':

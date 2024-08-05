@@ -8,6 +8,18 @@
 		// Update the 'dockerFile' property if you aren't using the standard 'Dockerfile' filename.
 		"dockerfile": "../Dockerfile",
 		"workspaceFolder": "/workspace",
+		"mounts": [
+			"source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
+			"source=${env:HOME}/.ssh,target=/root/.ssh,type=bind,consistency=cached"
+		],
+		"settings": {
+			"git.path": "/usr/bin/git",
+			"git.enabled": true
+		},
+		"extensions": [
+			"ms-vscode.git"
+		],
+		"postCreateCommand": "git --version"
 	}
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	// "features": {},

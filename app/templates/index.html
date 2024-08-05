@@ -8,17 +8,21 @@
 <body>
     <h1>Todos</h1>
     <ul>
-        {% for task in tasks %}
-        <li>
-            <span {% if task['status']=='Done' %} style="text-decoration: line-through" {% endif %}>{{ task['task'] }}</span>
-            <a href="{{ url_for('check', index=loop.index0) }}">Check</a>
-            <a href="{{ url_for('edit', index=loop.index0) }}">Edit</a>
-            <a href="{{ url_for('delete', index=loop.index0) }}">Delete</a>
-        </li>
-        {% endfor %}
+        {% for group in tasks_grouped.keys() %}
+            <h2>{{ group }}</h2>
+            {% for task in tasks_grouped[group] %}
+            <li>
+                <span>{{ task['task'] }}  ({{ task['status'] }}) ({{ task['due_date'] }})</span>
+                <a href="{{ url_for('modify', task_id=task['task_id']) }}">Modify</a>
+                <a href="{{ url_for('delete', task_id=task['task_id']) }}">Delete</a>
+            </li>
+            {% endfor %}
+        {% endfor%}
     </ul>
     <form action="{{ url_for('add') }}" method="post">
         <input type="text" name="task">
+        <input type="text" name="tag">
+        <input type="date" name="due_date">
         <button type="submit">Add task</button>
     </form>
 </body>
