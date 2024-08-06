@@ -3,27 +3,43 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="../static/css/styles.css">
     <title>First Todo App</title>
 </head>
 <body>
-    <h1>Todos</h1>
-    <ul>
-        {% for group in tasks_grouped.keys() %}
-            <h2>{{ group }}</h2>
-            {% for task in tasks_grouped[group] %}
-            <li>
-                <span>{{ task['task'] }}  ({{ task['status'] }}) ({{ task['due_date'] }})</span>
-                <a href="{{ url_for('modify', task_id=task['task_id']) }}">Modify</a>
-                <a href="{{ url_for('delete', task_id=task['task_id']) }}">Delete</a>
-            </li>
-            {% endfor %}
-        {% endfor%}
-    </ul>
-    <form action="{{ url_for('add') }}" method="post">
-        <input type="text" name="task">
-        <input type="text" name="tag">
-        <input type="date" name="due_date">
-        <button type="submit">Add task</button>
-    </form>
+    <div class="container">
+        <div class="title">
+            <h1>My Tasks</h1>
+        </div>
+        <div class="task-list">
+            <ul>
+                {% for group in tasks_grouped.keys() %}
+                    <h2>{{ group }}</h2>
+                    {% for task in tasks_grouped[group] %}
+                    <li>
+                        <span>{{ task['task'] }}  ({{ task['status'] }}) ({{ task['due_date'] }})</span>
+                        <a href="{{ url_for('modify', task_id=task['task_id']) }}">Modify</a>
+                        <a href="{{ url_for('delete', task_id=task['task_id']) }}">Delete</a>
+                    </li>
+                    {% endfor %}
+                {% endfor%}
+            </ul>
+        </div>
+        <div class="add-task">
+            <form action="{{ url_for('add') }}" method="post">
+                <h2>Add new task</h2>
+                <div class="form-field">
+                    <input type="text" placeholder="task" name="task">
+                </div>
+                <div class="form-field">
+                    <input type="text" placeholder="tag" name="tag">
+                </div>
+                <div class="form-field">
+                    <input type="date" name="due_date">
+                </div>
+                <button type="submit">Add</button>
+            </form>
+        </div>
+    </div>
 </body>
 </html>

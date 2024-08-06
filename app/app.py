@@ -19,7 +19,7 @@ select
 	, t.task
 	, t.status
 	, to_char(t.due_date, 'yyyy-mm-dd') due_date
-	, array_agg(t2.tag) as tags
+	, (array_agg(t2.tag))[1] as tag
 from tasks t
 left join task_tag tt on t.task_id = tt.task_id
 left join tags t2 on tt.tag_id = t2.tag_id
@@ -75,7 +75,7 @@ select
 	, t.task
 	, t.status
 	, to_char(t.due_date, 'yyyy-mm-dd') due_date
-	, array_agg(t2.tag) as tags
+	, (array_agg(t2.tag))[1] as tag
 from tasks t
 left join task_tag tt on t.task_id = tt.task_id
 left join tags t2 on tt.tag_id = t2.tag_id
@@ -91,6 +91,20 @@ set task = %s,
     due_date = %s
 where task_id = %s
 ;
+"""
+
+DELETE_TAGS_OF_A_TASK = """
+delete
+from task_tag
+where task_id = %s
+"""
+
+READ_STATUS_ENUM = """
+SELECT enumlabel
+FROM pg_enum
+JOIN pg_type ON pg_enum.enumtypid = pg_type.oid
+WHERE pg_type.typname = 'task_status_enum' and enumlabel != %s
+order by enumlabel desc;
 """
 
 
@@ -154,7 +168,12 @@ def modify(task_id):
         column_names = [metadata[0] for metadata in cursor.description]
         task = dict(zip(column_names, task))
 
-    return render_template('modify.html', task=task)
+
+        cursor.execute(READ_STATUS_ENUM, (task['status'], ))
+        status = cursor.fetchall()
+        status = [_[0] for _ in status]
+
+    return render_template('modify.html', task=task, status=status)
 
 @app.route('/update/<int:task_id>', methods=['POST'])
 def update(task_id):
@@ -166,12 +185,31 @@ def update(task_id):
     else:
         due_date = None
 
-    # To modify tags
-    tags = request.form(['tags'])
-    
+    if request.form['tag'] != 'None' and len(request.form['tag']) > 0:
+        tag = request.form['tag']
+    else:
+        tag = None
 
     with db_connection.cursor() as cursor:
+        # delete all existing tags of the task
+        cursor.execute(DELETE_TAGS_OF_A_TASK, (task_id, ))
+        # To modify tags
+        if tag is not None:
+
+            # Add tag to tags table
+            tag_id = cursor.execute(ADD_TASK_TAGS, (tag, tag))
+            tag_id = cursor.fetchall()
+            # Add task tag relation
+            # If it is a new tag
+            if len(tag_id) > 0:
+                cursor.execute(ADD_TASK_TASK_TAG_1, (task_id, tag_id[0][0]))
+            # If the tag already existed
+            else:
+                cursor.execute(ADD_TASK_TASK_TAG_2, (task_id, tag))
+
+        # To update the rest of the fields
         cursor.execute(UPDATE_TASK, (task, status, due_date, task_id))
+
     db_connection.commit()
 
     return redirect(url_for('index'))
