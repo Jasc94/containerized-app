@@ -3,8 +3,10 @@ from flask import (
     render_template,
     request,
     redirect,
-    url_for
+    url_for,
+    send_from_directory
 )
+import os
 import utils
 
 
@@ -107,6 +109,11 @@ WHERE pg_type.typname = 'task_status_enum' and enumlabel != %s
 order by enumlabel desc;
 """
 
+node_modules_path = '/app/node_modules'
+
+@app.route('/node_modules/<path:filename>')
+def node_modules(filename):
+    return send_from_directory(node_modules_path, filename)
 
 @app.route('/')
 def index():
